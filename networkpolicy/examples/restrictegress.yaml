@@ -1,0 +1,11 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: restrict-egress
+  namespace: app
+spec:
+  podSelector: {}
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 10.0.0.0/8
