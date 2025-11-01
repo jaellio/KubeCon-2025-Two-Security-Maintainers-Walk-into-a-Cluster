@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: demo-pod
+  namespace: default
+spec:
+  serviceAccountName: dev-service-account
+  containers:
+  - name: kubectl-container
+    image: bitnami/kubectl:latest
+    command: ["sleep", "infinity"]

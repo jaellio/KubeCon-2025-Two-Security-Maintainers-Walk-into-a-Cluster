@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app-with-csi
+  namespace: default
+  labels:
+    app: demo-app-csi
+spec:
+  serviceAccountName: demo-sa
+  containers:
+  - name: app
+    image: nginx:alpine
+    volumeMounts:
+    - name: secrets-store
+      mountPath: "/mnt/secrets-store"
+      readOnly: true
+    env:
+    - name: DB_USERNAME
+      value: "Read from /mnt/secrets-store/username"
+    - name: DB_PASSWORD
+      value: "Read from /mnt/secrets-store/password"
+  volumes:
+  - name: secrets-store
+    csi:
+      driver: secrets-store.csi.k8s.io
+      readOnly: true
+      volumeAttributes:
+        secretProviderClass: "vault-db-creds"
