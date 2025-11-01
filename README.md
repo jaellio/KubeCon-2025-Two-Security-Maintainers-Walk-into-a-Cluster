@@ -19,3 +19,6 @@ We selected these topics to highlight based on their relevance and importance in
 - Secrets Management
 - Image Security
 - KMS
+
+## Resources
+- Broader overview of kubernetes security considerations - [Kubernetes security checklist](https://kubernetes.io/docs/concepts/security/security-checklist/)
