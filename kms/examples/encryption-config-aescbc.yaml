@@ -1,0 +1,19 @@
+apiVersion: apiserver.config.k8s.io/v1
+kind: EncryptionConfiguration
+resources:
+  - resources:
+      - secrets
+    providers:
+      # aescbc provider - encrypts secrets using AES-CBC with PKCS#7 padding
+      # NOTE: This is for demo purposes. In production, use KMS v2 with external key management.
+      - aescbc:
+          keys:
+            - name: key1
+              # This is a base64-encoded 32-byte key
+              # In production, this key should be:
+              # 1. Generated securely (head -c 32 /dev/urandom | base64)
+              # 2. Stored securely (not in this file!)
+              # 3. Rotated regularly
+              secret: REPLACE_WITH_BASE64_KEY
+      # identity provider allows reading unencrypted data (for migration)
+      - identity: {}

@@ -1,0 +1,51 @@
+apiVersion: apiserver.config.k8s.io/v1
+kind: EncryptionConfiguration
+resources:
+  - resources:
+      - secrets
+      - configmaps  # Optional: also encrypt ConfigMaps
+    providers:
+      # KMS v2 provider - recommended for production
+      # Provides envelope encryption with external key management
+      - kms:
+          apiVersion: v2
+          name: my-kms-provider
+          # Unix socket for KMS plugin communication
+          endpoint: unix:///var/run/kmsplugin/socket.sock
+          # Timeout for KMS operations
+          timeout: 3s
+          # Optional: cache decrypted DEKs for performance
+          cachesize: 1000
+      # identity provider as fallback for reading old unencrypted data
+      - identity: {}
+
+---
+# Example KMS providers for different cloud platforms:
+#
+# AWS KMS:
+# - kms:
+#     apiVersion: v2
+#     name: aws-kms
+#     endpoint: unix:///var/run/kmsplugin/aws-kms.sock
+#     timeout: 3s
+#
+# Azure Key Vault:
+# - kms:
+#     apiVersion: v2
+#     name: azure-kv
+#     endpoint: unix:///var/run/kmsplugin/azure-kv.sock
+#     timeout: 3s
+#
+# Google Cloud KMS:
+# - kms:
+#     apiVersion: v2
+#     name: gcp-kms
+#     endpoint: unix:///var/run/kmsplugin/gcp-kms.sock
+#     timeout: 3s
+#
+# HashiCorp Vault:
+# - kms:
+#     apiVersion: v2
+#     name: vault
+#     endpoint: unix:///var/run/kmsplugin/vault.sock
+#     timeout: 3s

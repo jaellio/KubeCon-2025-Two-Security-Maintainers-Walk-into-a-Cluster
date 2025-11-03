@@ -1,0 +1,74 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo-app
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo-sensitive
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: client-pod
+  namespace: demo-app
+  labels:
+    app: client
+spec:
+  containers:
+  - name: client
+    image: nicolaka/netshoot:latest
+    command: ["sleep", "infinity"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: server-pod
+  namespace: demo-app
+  labels:
+    app: server
+spec:
+  containers:
+  - name: nginx
+    image: nginx:alpine
+    ports:
+    - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: server-service
+  namespace: demo-app
+spec:
+  selector:
+    app: server
+  ports:
+  - port: 80
+    targetPort: 80
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sensitive-pod
+  namespace: demo-sensitive
+  labels:
+    app: database
+spec:
+  containers:
+  - name: nginx
+    image: nginx:alpine
+    ports:
+    - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sensitive-service
+  namespace: demo-sensitive
+spec:
+  selector:
+    app: database
+  ports:
+  - port: 80
+    targetPort: 80
