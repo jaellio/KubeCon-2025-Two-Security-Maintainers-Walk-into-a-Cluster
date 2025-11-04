@@ -1,7 +1,34 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-internal-traffic
+  name: allow-client-egress
+  namespace: demo-app
+spec:
+  podSelector:
+    matchLabels:
+      app: client
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: server
+    ports:
+    - protocol: TCP
+      port: 80
+  - to:  # Allow DNS to kube-system
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-server-ingress
   namespace: demo-app
 spec:
   podSelector:

@@ -22,21 +22,21 @@ demo_rbac() {
     echo
 
     # Change to examples directory to use shorter paths
-    p "cd rbac/examples"
+#    p "cd rbac/examples"
     cd "${EXAMPLES_DIR}"
     echo
 
-    pe "cat vulnerable-clusteradmin.yaml"
+    pei "cat vulnerable-clusteradmin.yaml"
     echo
     danger "Notice: This ServiceAccount is bound to 'cluster-admin' ClusterRole!"
     echo
     wait
 
     info "Deploying the vulnerable configuration..."
-    pe "kubectl apply -f vulnerable-clusteradmin.yaml"
+    pei "kubectl apply -f vulnerable-clusteradmin.yaml"
     echo
-    pe "kubectl get serviceaccount dev-service-account"
-    pe "kubectl get clusterrolebinding dev-cluster-admin-binding"
+    pei "kubectl get serviceaccount dev-service-account"
+    pei "kubectl get clusterrolebinding dev-cluster-admin-binding"
     echo
     wait
 
@@ -58,10 +58,6 @@ demo_rbac() {
 
     info "Testing what this ServiceAccount can do..."
     echo
-    pe "kubectl auth can-i '*' '*' --as=system:serviceaccount:default:dev-service-account"
-    echo
-    pe "kubectl auth can-i delete nodes --as=system:serviceaccount:default:dev-service-account"
-    echo
     pe "kubectl auth can-i get secrets --all-namespaces --as=system:serviceaccount:default:dev-service-account"
     echo
     pe "kubectl auth can-i create clusterrolebindings --as=system:serviceaccount:default:dev-service-account"
@@ -77,7 +73,7 @@ demo_rbac() {
     clear
     section_header "RBAC: The Attack Scenario 🎭" "${RED}"
     echo
-    danger "An attacker finds an RCE vulnerability in your application..."
+    danger "An attacker finds a vulnerability in your application..."
     danger "They deploy a pod using the overprivileged ServiceAccount..."
     echo
 
@@ -98,14 +94,6 @@ demo_rbac() {
     echo
     pe "kubectl exec demo-pod -- kubectl get secrets -n kube-system"
     echo
-    wait
-
-    danger "They can list all nodes and potentially delete them..."
-    echo
-    pe "kubectl exec demo-pod -- kubectl get nodes"
-    pe "kubectl exec demo-pod -- kubectl auth can-i delete nodes"
-    echo
-    wait
 
     danger "They can even create new admin accounts for persistence..."
     echo
@@ -172,10 +160,6 @@ demo_rbac() {
     pe "kubectl exec demo-pod -- kubectl auth can-i list pods"
     echo
 
-    info "Can they list services? (Yes - this is needed for the application)"
-    pe "kubectl exec demo-pod -- kubectl auth can-i list services"
-    echo
-
     info "Can they get configmaps? (Yes - this is needed for the application)"
     pe "kubectl exec demo-pod -- kubectl auth can-i get configmaps"
     echo
@@ -184,16 +168,8 @@ demo_rbac() {
     success "But now the dangerous permissions are blocked..."
     echo
 
-    info "Can they get secrets? (No - secrets are protected!)"
-    pe "kubectl exec demo-pod -- kubectl auth can-i get secrets"
-    echo
-
     info "Can they access kube-system namespace? (No - scoped to default only!)"
     pe "kubectl exec demo-pod -- kubectl auth can-i list secrets -n kube-system"
-    echo
-
-    info "Can they delete nodes? (No - no cluster-wide access!)"
-    pe "kubectl exec demo-pod -- kubectl auth can-i delete nodes"
     echo
 
     info "Can they create new admin bindings? (No - privilege escalation blocked!)"
@@ -220,12 +196,12 @@ demo_rbac() {
     # Cleanup
     #############################################
 
-    info "Cleaning up RBAC demo resources..."
+#    info "Cleaning up RBAC demo resources..."
     kubectl delete -f demo-pod.yaml --force --grace-period=0 --ignore-not-found=true &>/dev/null
     kubectl delete -f scoped-rolebinding.yaml --ignore-not-found=true &>/dev/null
     kubectl delete -f scoped-role.yaml --ignore-not-found=true &>/dev/null
     kubectl delete -f vulnerable-clusteradmin.yaml --ignore-not-found=true &>/dev/null
-    success "Done"
+#    success "Done"
     echo
 
     # Return to original directory

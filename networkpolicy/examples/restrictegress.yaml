@@ -2,7 +2,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: restrict-egress
-  namespace: app
+  namespace: demo-app
 spec:
   podSelector: {}
   egress:

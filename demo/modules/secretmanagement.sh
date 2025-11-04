@@ -10,6 +10,16 @@ demo_secretmanagement() {
     local REPO_ROOT="$(dirname "$(dirname "$MODULE_DIR")")"
     local EXAMPLES_DIR="${REPO_ROOT}/secretmanagement/examples"
 
+    # Helper function to execute etcdctl commands via kubectl exec to the etcd pod
+    etcdctl_exec() {
+        local etcd_pod=$(kubectl get pods -n kube-system -l component=etcd -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+        if [ -z "$etcd_pod" ]; then
+            echo "Error: Could not find etcd pod in kube-system namespace" >&2
+            return 1
+        fi
+        kubectl exec -n kube-system "$etcd_pod" -- sh -c "$1"
+    }
+
     #############################################
     # SCENE 1: The Mistake (Broken)
     #############################################
@@ -22,7 +32,7 @@ demo_secretmanagement() {
     echo
 
     # Change to examples directory
-    p "cd secretmanagement/examples/vulnerable"
+#    p "cd secretmanagement/examples/vulnerable"
     cd "${EXAMPLES_DIR}/vulnerable"
     echo
 
@@ -46,6 +56,7 @@ demo_secretmanagement() {
     danger "But is this really secure? Let's find out..."
     echo
     wait
+    sleep 1
 
     #############################################
     # SCENE 2: The Impact (What This Means)
@@ -74,13 +85,14 @@ demo_secretmanagement() {
 
     info "Now let's check etcd..."
     echo
-    pe "docker exec kubecon-security-demo-control-plane bash -c 'ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key get /registry/secrets/default/db-secret' | head -20"
+    pe "etcdctl_exec 'ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key get /registry/secrets/default/db-secret' | head -20"
     echo
 
     danger "Even with encryption, secrets exist in etcd!"
     danger "Anyone with etcd access can decrypt them through the API"
     echo
     wait
+    sleep 1
 
     #############################################
     # SCENE 3: The Attack (Simulated)
@@ -128,13 +140,13 @@ demo_secretmanagement() {
     info "Secrets exposed as env vars can leak through:"
     info "  • Crash dumps"
     info "  • Log files"
-    info "  • /proc filesystem"
     echo
     pe "kubectl exec app-with-secret -- env | grep DB_"
     echo
     danger "Environment variables are easily leaked!"
     echo
     wait
+    sleep 1
 
     #############################################
     # SCENE 4: The Fix (CSI Driver + Vault)
@@ -148,77 +160,54 @@ demo_secretmanagement() {
     info "Benefits:"
     echo "  • Secrets NEVER stored in etcd"
     echo "  • Direct retrieval from external provider"
-    echo "  • Advanced features: rotation, versioning, audit logs"
+    echo "  • Advanced features: rotation, audit"
     echo "  • Reduced blast radius"
     echo "  • Fine-grained access control"
     echo
     wait
 
-    info "Step 1: Deploy HashiCorp Vault in dev mode"
+    info "The cluster was pre-configured with:"
+    echo "  ✅ Secrets Store CSI Driver installed"
+    echo "  ✅ Vault deployed in dev mode"
+    echo "  ✅ Secrets and policies configured"
+    echo "  ✅ SecretProviderClass deployed"
     echo
-    p "cd ../vault-setup"
+    wait
+
+    info "Let's verify Vault is running with our secrets:"
+    echo
     cd "${EXAMPLES_DIR}/vault-setup"
-    echo
-    pe "cat vault-dev.yaml | head -30"
-    echo
-    pe "kubectl apply -f vault-dev.yaml"
-    echo
-    pe "kubectl wait --for=condition=ready pod/vault-0 --timeout=90s"
-    echo
-    success "Vault is running!"
-    echo
-    wait
-
-    info "Step 2: Configure Vault with our secrets and policies"
-    echo
-    pe "cat vault-config.sh | head -40"
-    echo
-    pe "bash vault-config.sh"
-    echo
-    success "Vault configured with database credentials and policies!"
-    echo
-    wait
-
-    info "Let's verify the secret is in Vault, NOT in Kubernetes:"
-    echo
-    pe "kubectl exec vault-0 -- vault kv get secret/db-creds"
+    pe "kubectl exec vault-0 -- env VAULT_TOKEN=root vault kv get secret/db-creds"
     echo
     success "✅ Secret stored in Vault, not etcd!"
     echo
     wait
 
-    info "Step 3: Create ServiceAccount for our app"
+    info "Now let's look at the SecretProviderClass configuration..."
     echo
-    pe "cat rbac.yaml"
+    info "This tells the CSI driver how to map Vault secrets to filesystem paths"
     echo
-    pe "kubectl apply -f rbac.yaml"
-    echo
-    wait
-
-    info "Step 4: Configure SecretProviderClass (CSI driver config)"
-    echo
-    p "cd ../csi-driver"
     cd "${EXAMPLES_DIR}/csi-driver"
-    echo
     pe "cat secretproviderclass.yaml"
     echo
-    info "This maps Vault secrets to filesystem paths in the pod"
-    echo
-    pe "kubectl apply -f secretproviderclass.yaml"
-    echo
     wait
 
-    info "Step 5: Deploy app using CSI driver"
+    info "Let's look at the app configuration that uses CSI driver to mount secrets from Vault..."
     echo
     pe "cat app-with-csi.yaml"
     echo
-    pe "kubectl apply -f app-with-csi.yaml"
+    wait
+
+    info "The app-with-csi pod was deployed during cluster setup..."
     echo
-    pe "kubectl wait --for=condition=ready pod/app-with-csi --timeout=60s"
+    info "Let's verify it's running with CSI-mounted secrets..."
     echo
-    success "App is running with CSI-mounted secrets!"
+    pe "kubectl get pod app-with-csi"
+    echo
+    success "✅ App is running with CSI-mounted secrets!"
     echo
     wait
+    sleep 1
 
     #############################################
     # SCENE 5: The Result (Verification)
@@ -232,7 +221,7 @@ demo_secretmanagement() {
 
     info "Checking etcd for any vault-related secrets..."
     echo
-    pe "docker exec kubecon-security-demo-control-plane bash -c 'ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key get /registry/secrets/default/ --prefix --keys-only | grep vault || echo \"No vault secrets in etcd!\"'"
+    pe "etcdctl_exec 'ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key get /registry/secrets/default/ --prefix --keys-only | grep vault || echo \"No vault secrets in etcd!\"'"
     echo
     success "✅ No secrets stored in etcd!"
     echo
@@ -242,11 +231,7 @@ demo_secretmanagement() {
     echo
     pe "kubectl exec app-with-csi -- ls -la /mnt/secrets-store"
     echo
-    pe "kubectl exec app-with-csi -- cat /mnt/secrets-store/username"
-    echo
     pe "kubectl exec app-with-csi -- cat /mnt/secrets-store/password"
-    echo
-    pe "kubectl exec app-with-csi -- cat /mnt/secrets-store/host"
     echo
     success "✅ App can access secrets from Vault!"
     echo
@@ -257,19 +242,6 @@ demo_secretmanagement() {
     pe "kubectl get secrets | grep -i vault || echo 'No vault secrets in Kubernetes'"
     echo
     success "✅ Secrets managed externally, not in Kubernetes!"
-    echo
-    wait
-
-    info "Compare the two approaches:"
-    echo
-    echo "Native K8s Secret (app-with-secret):"
-    pe "kubectl exec app-with-secret -- env | grep DB_PASSWORD"
-    echo
-    echo "CSI Driver with Vault (app-with-csi):"
-    pe "kubectl exec app-with-csi -- sh -c 'cat /mnt/secrets-store/password'"
-    echo
-    info "CSI approach: Secrets mounted as files, not env vars!"
-    success "Less risk of leaking through logs or crash dumps"
     echo
     wait
 
@@ -289,18 +261,7 @@ demo_secretmanagement() {
     info "Additional benefits:"
     echo "  • Secret rotation via Vault"
     echo "  • Detailed audit logs in Vault"
-    echo "  • Dynamic secrets (database credentials with TTL)"
     echo "  • Multi-cloud secret management"
-    echo "  • Compliance-friendly (FIPS, PCI-DSS)"
-    echo
-    info "For production, remember to:"
-    echo "  • Deploy Vault in HA mode (not dev mode!)"
-    echo "  • Enable TLS for all Vault communication"
-    echo "  • Use Vault namespaces for multi-tenancy"
-    echo "  • Configure secret rotation policies"
-    echo "  • Enable comprehensive audit logging"
-    echo "  • Integrate with cloud KMS (AWS KMS, Azure Key Vault)"
-    echo "  • Test disaster recovery procedures"
     echo
     wait
 
@@ -308,21 +269,15 @@ demo_secretmanagement() {
     # Cleanup
     #############################################
 
-    info "Cleaning up Secret Management demo resources..."
+#    info "Cleaning up Secret Management demo resources..."
+    # Only cleanup the vulnerable example resources created during the demo
     kubectl delete pod app-with-secret --force --grace-period=0 --ignore-not-found=true &>/dev/null
     kubectl delete secret db-secret --ignore-not-found=true &>/dev/null
-    kubectl delete pod app-with-csi --force --grace-period=0 --ignore-not-found=true &>/dev/null
-    kubectl delete secretproviderclass vault-db-creds --ignore-not-found=true &>/dev/null
-    kubectl delete serviceaccount demo-sa --ignore-not-found=true &>/dev/null
-    kubectl delete statefulset vault --ignore-not-found=true &>/dev/null
-    kubectl delete service vault --ignore-not-found=true &>/dev/null
-    kubectl delete serviceaccount vault --ignore-not-found=true &>/dev/null
-    kubectl delete configmap vault-config --ignore-not-found=true &>/dev/null
 
-    # Wait for vault pod to be fully deleted
-    kubectl wait --for=delete pod/vault-0 --timeout=30s &>/dev/null || true
+    # Note: app-with-csi, Vault, SecretProviderClass, and ServiceAccounts are NOT deleted
+    # as they were created during cluster setup and should persist
 
-    success "Done"
+#    success "Done"
     echo
 
     # Return to original directory

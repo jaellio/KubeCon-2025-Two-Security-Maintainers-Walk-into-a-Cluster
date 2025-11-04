@@ -1,0 +1,38 @@
+## DO NOT DEPLOY THIS POD IN PRODUCTION ##
+## This pod has extremely dangerous security settings for demonstration only ##
+apiVersion: v1
+kind: Pod
+metadata:
+  name: privileged-pod
+  namespace: demo-pss
+  labels:
+    app: privileged-demo
+spec:
+  hostPID: true        # Can see all host processes
+  hostNetwork: true    # Uses host network namespace
+  hostIPC: true        # Shares host IPC namespace
+  containers:
+  - name: privileged-container
+    image: ubuntu:22.04
+    command: ["/bin/bash", "-c", "sleep 3600"]
+    securityContext:
+      privileged: true              # Full access to host
+      runAsUser: 0                  # Running as root
+      allowPrivilegeEscalation: true
+      capabilities:
+        add: ["SYS_ADMIN", "NET_ADMIN"]  # Dangerous capabilities
+    volumeMounts:
+    - name: host-root
+      mountPath: /host              # Host filesystem access
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "200m"
+        memory: "256Mi"
+  volumes:
+  - name: host-root
+    hostPath:
+      path: /                       # Mounting host root!
+      type: Directory

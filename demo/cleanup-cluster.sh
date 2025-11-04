@@ -29,7 +29,7 @@ info() {
 }
 
 success() {
-    echo -e "${GREEN}✅ $1${NC}"
+    echo -e " ${GREEN}✅ $1${NC}"
 }
 
 warning() {

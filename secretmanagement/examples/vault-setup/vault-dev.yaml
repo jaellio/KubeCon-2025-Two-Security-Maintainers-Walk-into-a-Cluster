@@ -4,23 +4,18 @@ metadata:
   name: vault
   namespace: default
 ---
-apiVersion: v1
-kind: ConfigMap
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
 metadata:
-  name: vault-config
+  name: vault-tokenreview-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+- kind: ServiceAccount
+  name: vault
   namespace: default
-data:
-  vault-config.hcl: |
-    ui = true
-
-    listener "tcp" {
-      address = "0.0.0.0:8200"
-      tls_disable = 1
-    }
-
-    storage "file" {
-      path = "/vault/data"
-    }
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -46,7 +41,6 @@ spec:
         image: hashicorp/vault:1.15
         args:
         - "server"
-        - "-config=/vault/config/vault-config.hcl"
         - "-dev"
         - "-dev-root-token-id=root"
         env:
@@ -60,8 +54,6 @@ spec:
         - containerPort: 8201
           name: internal
         volumeMounts:
-        - name: config
-          mountPath: /vault/config
         - name: data
           mountPath: /vault/data
         readinessProbe:
@@ -72,9 +64,6 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 5
       volumes:
-      - name: config
-        configMap:
-          name: vault-config
       - name: data
         emptyDir: {}
 ---

@@ -29,11 +29,11 @@ info() {
 }
 
 success() {
-    echo -e "${GREEN}✅ $1${NC}"
+    echo -e " ${GREEN}✅ $1${NC}"
 }
 
 error() {
-    echo -e "${RED}❌ $1${NC}"
+    echo -e " ${RED}❌ $1${NC}"
 }
 
 warning() {
@@ -97,19 +97,7 @@ section "Checking for Existing Cluster"
 
 if kind get clusters 2>/dev/null | grep -q "^${CLUSTER_NAME}$"; then
     warning "Cluster '${CLUSTER_NAME}' already exists"
-    read -p "Delete and recreate? (y/N): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        info "Deleting existing cluster..."
-        kind delete cluster --name "${CLUSTER_NAME}"
-        success "Old cluster deleted"
-    else
-        info "Using existing cluster"
-        kubectl cluster-info --context "kind-${CLUSTER_NAME}"
-        echo
-        success "Cluster is ready! You can run ./demo.sh now"
-        exit 0
-    fi
+    kind delete cluster --name "${CLUSTER_NAME}"
 else
     info "No existing cluster found"
 fi
@@ -127,7 +115,8 @@ mkdir -p "${TEMP_DIR}"
 info "Generating encryption key for KMS demo..."
 ENCRYPTION_KEY=$(head -c 32 /dev/urandom | base64)
 
-# Create encryption configuration
+# Create encryption configuration with aescbc (for encrypted cluster)
+info "Creating encryption configuration (aescbc)..."
 cat > "${TEMP_DIR}/encryption-config.yaml" << EOF
 apiVersion: apiserver.config.k8s.io/v1
 kind: EncryptionConfiguration
@@ -142,7 +131,7 @@ resources:
       - identity: {}
 EOF
 
-success "Encryption configuration created"
+success "Encryption configuration created (aescbc enabled)"
 
 # Create kind cluster configuration
 cat > "${TEMP_DIR}/kind-config.yaml" << EOF
@@ -154,7 +143,7 @@ nodes:
   extraMounts:
   - hostPath: ${TEMP_DIR}/encryption-config.yaml
     containerPath: /etc/kubernetes/enc/encryption-config.yaml
-    readOnly: true
+    readOnly: false
   kubeadmConfigPatches:
   - |
     kind: ClusterConfiguration
@@ -165,7 +154,7 @@ nodes:
       - name: encryption-config
         hostPath: /etc/kubernetes/enc
         mountPath: /etc/kubernetes/enc
-        readOnly: true
+        readOnly: false
 EOF
 
 success "Kind cluster configuration created"
@@ -200,34 +189,30 @@ kubectl cluster-info --context "kind-${CLUSTER_NAME}"
 echo
 success "Cluster is healthy!"
 
-########################
-# Pre-pull Images
-########################
+###########################
+#### Setup Network Policy Demo Resources
+###########################
 
-section "Pre-pulling Demo Images"
+section "Setting up Network Policy Demo Resources"
 
-info "Pre-pulling container images for faster demo..."
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 
-# Images used in demos
-IMAGES=(
-    "nginx:alpine"
-    "bitnami/kubectl:latest"
-    "nicolaka/netshoot:latest"
-    "hashicorp/vault:1.15"
-)
+info "Deploying demo pods for network policy demo..."
+kubectl apply -f "${REPO_ROOT}/networkpolicy/examples/demo-pods.yaml"
+echo
 
-for image in "${IMAGES[@]}"; do
-    info "Pulling ${image}..."
-    docker pull "${image}" &> /dev/null || warning "Failed to pull ${image}"
-    # Load into kind cluster
-    kind load docker-image "${image}" --name "${CLUSTER_NAME}" &> /dev/null || warning "Failed to load ${image} into cluster"
-done
+info "Waiting for demo pods to be ready..."
+kubectl wait --for=condition=ready pod/client-pod -n demo-app --timeout=60s
+kubectl wait --for=condition=ready pod/server-pod -n demo-app --timeout=60s
+kubectl wait --for=condition=ready pod/sensitive-pod -n demo-sensitive --timeout=60s
+echo
 
-success "Images pre-loaded into cluster"
+success "Network policy demo pods ready"
+echo
 
-########################
-# Install Secrets Store CSI Driver
-########################
+##########################
+### Install Secrets Store CSI Driver
+##########################
 
 section "Installing Secrets Store CSI Driver"
 
@@ -238,34 +223,98 @@ helm repo update &> /dev/null
 info "Installing Secrets Store CSI Driver..."
 helm install csi-secrets-store secrets-store-csi-driver/secrets-store-csi-driver \
     --namespace kube-system \
-    --set syncSecret.enabled=true \
+    --set syncSecret.enabled=false \
     --set enableSecretRotation=true \
     --wait &> /dev/null
 
 success "Secrets Store CSI Driver installed"
 
 info "Installing Vault CSI Provider..."
-helm install vault-csi-provider hashicorp/vault-csi-provider \
-    --namespace kube-system \
-    --set "image.repository=hashicorp/vault-csi-provider" \
-    --set "image.tag=1.4.2" \
-    --wait &> /dev/null || {
-    # If hashicorp helm repo not added yet, add it
-    info "Adding HashiCorp Helm repository..."
-    helm repo add hashicorp https://helm.releases.hashicorp.com &> /dev/null
-    helm repo update &> /dev/null
-    helm install vault-csi-provider hashicorp/vault-csi-provider \
-        --namespace kube-system \
-        --wait &> /dev/null
-}
+kubectl apply -f https://raw.githubusercontent.com/hashicorp/vault-csi-provider/v1.4.3/deployment/vault-csi-provider.yaml
 
 success "Vault CSI Provider installed"
 
 info "Verifying CSI driver installation..."
 kubectl get pods -n kube-system -l app.kubernetes.io/name=secrets-store-csi-driver
-kubectl get pods -n kube-system -l app.kubernetes.io/name=vault-csi-provider
+kubectl get pods -n csi -l app.kubernetes.io/name=vault-csi-provider
 
 success "CSI Driver components are running"
+
+#########################
+## Deploy and Configure Vault
+#########################
+
+section "Deploying and Configuring Vault"
+
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+
+info "Deploying Vault in dev mode..."
+kubectl apply -f "${REPO_ROOT}/secretmanagement/examples/vault-setup/vault-dev.yaml"
+echo
+
+info "Waiting for Vault to be ready..."
+kubectl wait --for=condition=ready pod -l app=vault --timeout=90s
+echo
+
+success "Vault is running!"
+echo
+
+info "Configuring Vault with secrets and policies..."
+cd "${REPO_ROOT}/secretmanagement/examples/vault-setup"
+bash vault-config.sh &> /dev/null
+cd - &> /dev/null
+
+success "Vault configured with database credentials and policies"
+echo
+
+info "Deploying SecretProviderClass..."
+kubectl apply -f "${REPO_ROOT}/secretmanagement/examples/csi-driver/secretproviderclass.yaml"
+echo
+
+success "SecretProviderClass deployed"
+echo
+
+info "Creating ServiceAccount and RBAC for CSI app..."
+kubectl apply -f "${REPO_ROOT}/secretmanagement/examples/vault-setup/rbac.yaml"
+echo
+
+success "ServiceAccount and RBAC created"
+echo
+
+info "Deploying app-with-csi pod..."
+kubectl apply -f "${REPO_ROOT}/secretmanagement/examples/csi-driver/app-with-csi.yaml"
+echo
+
+info "Waiting for app-with-csi to be ready..."
+kubectl wait --for=condition=ready pod/app-with-csi --timeout=90s
+echo
+
+success "app-with-csi pod deployed and running"
+echo
+
+success "✅ Vault and CSI driver are fully configured and ready for demo!"
+
+#########################
+## Create Second Cluster (No Encryption)
+#########################
+
+section "Creating Second Cluster (No Encryption)"
+
+info "Creating a simple cluster WITHOUT encryption for comparison..."
+info "Cluster name: ${CLUSTER_NAME}-noenc"
+echo
+
+kind delete cluster --name "${CLUSTER_NAME}-noenc"
+kind create cluster --name "${CLUSTER_NAME}-noenc"
+
+echo
+success "Second cluster created (no encryption)!"
+
+info "Waiting for cluster to be ready..."
+kubectl wait --for=condition=Ready nodes --all --timeout=60s --context "kind-${CLUSTER_NAME}-noenc"
+
+echo
+success "Both clusters are ready!"
 
 ########################
 # Summary
@@ -274,18 +323,25 @@ success "CSI Driver components are running"
 section "Setup Complete!"
 
 echo
-success "Kind cluster '${CLUSTER_NAME}' is ready for the demo!"
+success "Both Kind clusters are ready for the demo!"
 echo
 info "Configuration summary:"
-echo "  • Cluster name: ${CLUSTER_NAME}"
-echo "  • Encryption: aescbc (pre-configured for KMS demo)"
-echo "  • Images: Pre-loaded (nginx, kubectl, netshoot, vault)"
-echo "  • CSI Driver: Secrets Store CSI Driver + Vault Provider"
+echo
+echo "Cluster 1: ${CLUSTER_NAME}"
+echo "  • Purpose: Show encrypted secrets (the solution)"
+echo "  • Encryption: aescbc enabled"
 echo "  • Context: kind-${CLUSTER_NAME}"
+echo
+echo "Cluster 2: ${CLUSTER_NAME}-noenc"
+echo "  • Purpose: Show plain-text secrets (the problem)"
+echo "  • Encryption: None (default Kubernetes)"
+echo "  • Context: kind-${CLUSTER_NAME}-noenc"
 echo
 info "Next steps:"
 echo "  1. Run the demo: ./demo.sh"
 echo "  2. When done, cleanup: ./cleanup-cluster.sh"
+echo
+info "Note: First demo run may take slightly longer as images are pulled"
 echo
 success "You're all set! 🚀"
 echo

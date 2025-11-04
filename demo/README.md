@@ -81,12 +81,13 @@ cd demo
 - Checks prerequisites (kind, kubectl, docker, helm)
 - Generates encryption key for KMS demo
 - Creates kind cluster with encryption pre-configured
-- Pre-loads container images (nginx, netshoot, kubectl, vault)
 - Installs Secrets Store CSI Driver and Vault provider
 - Verifies cluster health
 - Shows ready confirmation
 
-**Time:** 3-5 minutes (do this before your presentation!)
+**Time:** 2-3 minutes (do this before your presentation!)
+
+**Note:** Container images (nginx, kubectl, netshoot, vault) will be pulled automatically during demos. First demo run may take an extra 1-2 minutes for image pulls.
 
 ### Running the Demo
 
@@ -283,15 +284,18 @@ kind delete cluster --name kubecon-security-demo
 # Linux: sudo systemctl start docker
 ```
 
-**Problem**: Images fail to pre-load
+**Problem**: Images take long to pull during demo
 ```bash
-# Solution: Pull images manually
+# Images are pulled automatically on first use
+# To pre-pull manually if needed (optional):
 docker pull nginx:alpine
 docker pull bitnami/kubectl:latest
 docker pull nicolaka/netshoot:latest
 docker pull hashicorp/vault:1.15
-kind load docker-image nginx:alpine --name kubecon-security-demo
-kind load docker-image hashicorp/vault:1.15 --name kubecon-security-demo
+
+# Note: On macOS (especially ARM64), kind load can fail
+# It's better to let Kubernetes pull images naturally
+# This happens automatically during demos
 ```
 
 **Problem**: CSI driver installation fails
