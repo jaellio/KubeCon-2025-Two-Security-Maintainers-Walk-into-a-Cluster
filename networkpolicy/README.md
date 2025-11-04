@@ -47,6 +47,7 @@ spec:
     - namespaceSelector:
         matchLabels:
           name: team-a # For pods in namespace 'team-a', only allow ingress from pods in namespace 'team-a'
+  egress:
   - to:
     - namespaceSelector:
         matchLabels:
