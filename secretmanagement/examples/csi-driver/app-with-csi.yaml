@@ -14,11 +14,6 @@ spec:
     - name: secrets-store
       mountPath: "/mnt/secrets-store"
       readOnly: true
-    env:
-    - name: DB_USERNAME
-      value: "Read from /mnt/secrets-store/username"
-    - name: DB_PASSWORD
-      value: "Read from /mnt/secrets-store/password"
   volumes:
   - name: secrets-store
     csi:

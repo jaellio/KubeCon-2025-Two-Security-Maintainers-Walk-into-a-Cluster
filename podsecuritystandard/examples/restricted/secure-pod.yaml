@@ -1,0 +1,32 @@
+## Secure Pod - Compliant with Restricted Pod Security Standard ##
+apiVersion: v1
+kind: Pod
+metadata:
+  name: secure-pod
+  namespace: demo-pss-restricted
+  labels:
+    app: secure-demo
+spec:
+  # No host namespace sharing
+  containers:
+  - name: secure-container
+    image: ubuntu:22.04
+    command: ["/bin/bash", "-c", "sleep 3600"]
+    securityContext:
+      # Required for Restricted PSS
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 3000
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]  # Drop all capabilities
+      seccompProfile:
+        type: RuntimeDefault  # Use default seccomp profile
+      readOnlyRootFilesystem: false  # Can be true for even better security
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "200m"
+        memory: "256Mi"

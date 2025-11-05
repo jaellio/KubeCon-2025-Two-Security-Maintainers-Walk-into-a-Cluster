@@ -20,6 +20,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # Configuration
 ########################
 TYPE_SPEED=30
+PROMPT_TIMEOUT=1
 DEMO_PROMPT="${GREEN}➜ ${CYAN}\W ${COLOR_RESET}"
 
 # Cluster name
@@ -45,24 +46,13 @@ section_header() {
     local title="$1"
     local color="${2:-$CYAN}"
 
-    # Calculate string length (not perfect with emojis, but simple and reliable)
-    local title_len=${#title}
-
-    # Border width = text length + 4 (for "  " on each side)
-    local border_width=$((title_len + 4))
-
-    # Generate the top/bottom border line
-    local border_line=$(printf '═%.0s' $(seq 1 $border_width))
-
-    # Generate the empty line with spaces
-    local empty_line=$(printf ' %.0s' $(seq 1 $border_width))
+    # Fixed width border (looks good on standard terminal)
+    local border_line="═══════════════════════════════════════════════════════════════════"
 
     echo
-    echo -e "${color}╔${border_line}╗${NC}"
-    echo -e "${color}║${empty_line}║${NC}"
-    echo -e "${color}║${NC}  ${title}  ${color}║${NC}"
-    echo -e "${color}║${empty_line}║${NC}"
-    echo -e "${color}╚${border_line}╝${NC}"
+    echo -e "${color}${border_line}${NC}"
+    echo -e "${color}  ${title}${NC}"
+    echo -e "${color}${border_line}${NC}"
     echo
 }
 
@@ -98,6 +88,12 @@ source "${SCRIPT_DIR}/modules/kms.sh"
 # Source Secret Management module
 source "${SCRIPT_DIR}/modules/secretmanagement.sh"
 
+# Source Image Vulnerability module
+source "${SCRIPT_DIR}/modules/imagevulnerability.sh"
+
+# Source Pod Security Standards module
+source "${SCRIPT_DIR}/modules/podsecuritystandard.sh"
+
 # Add more modules here as you expand
 # source "${SCRIPT_DIR}/modules/podsecurity.sh"
 
@@ -120,29 +116,7 @@ echo "  • Secret Management: Secure external secret storage"
 echo
 wait
 
-#############################################
-# Verify Cluster Exists
-#############################################
-
-clear
-section_header "Verifying Cluster Setup ✓" "${BLUE}"
-echo
-info "Checking if cluster is ready..."
-echo
-
-# Check if cluster exists
-if ! kubectl cluster-info &>/dev/null; then
-    error "Cluster not found!"
-    echo
-    error "Please run ./setup-cluster.sh first to create the cluster"
-    echo
-    exit 1
-fi
-
-success "Cluster is ready!"
-pe "kubectl cluster-info"
-echo
-wait
+sleep 3
 
 #############################################
 # Run Security Demos
@@ -151,17 +125,20 @@ wait
 # Run RBAC demo
 demo_rbac
 
-# Run Network Policy demo
-demo_networkpolicy
-
 # Run KMS demo
 demo_kms
 
 # Run Secret Management demo
 demo_secretmanagement
 
-# Add more demos here as you expand
-# demo_podsecurity
+# Run Network Policy demo
+ demo_networkpolicy
+
+# Run Image Vulnerability demo
+demo_imagevulnerability
+
+# Run Pod Security Standards demo
+demo_podsecuritystandard
 
 #############################################
 # Demo Complete
