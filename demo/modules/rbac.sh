@@ -5,6 +5,9 @@
 # Demonstrates the danger of overly permissive service account bindings
 ########################
 
+shopt -s expand_aliases
+alias k='kubecolor'
+
 demo_rbac() {
     local MODULE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
     local REPO_ROOT="$(dirname "$(dirname "$MODULE_DIR")")"
@@ -31,13 +34,20 @@ demo_rbac() {
     danger "Notice: This ServiceAccount is bound to 'cluster-admin' ClusterRole!"
     echo
     wait
+    wait
 
+    clear
     info "Deploying the vulnerable configuration..."
-    pei "kubectl apply -f vulnerable-clusteradmin.yaml"
+    pei "k apply -f vulnerable-clusteradmin.yaml"
     echo
-    pei "kubectl get serviceaccount dev-service-account"
-    pei "kubectl get clusterrolebinding dev-cluster-admin-binding"
+    wait
+    pei "k get serviceaccount dev-service-account"
     echo
+    wait
+    wait
+    pei "k get clusterrolebinding dev-cluster-admin-binding"
+    echo
+    wait
     wait
 
     #############################################
@@ -50,20 +60,23 @@ demo_rbac() {
     info "Let's check what 'cluster-admin' actually grants..."
     echo
 
-    pe "kubectl describe clusterrole cluster-admin | head -15"
+    pe "k describe clusterrole cluster-admin"
     echo
     danger "This grants FULL access to ALL resources in ALL namespaces!"
     echo
     wait
+    wait
 
+    clear
     info "Testing what this ServiceAccount can do..."
     echo
-    pe "kubectl auth can-i get secrets --all-namespaces --as=system:serviceaccount:default:dev-service-account"
+    pe "k auth can-i get secrets --all-namespaces --as=system:serviceaccount:default:dev-service-account"
     echo
-    pe "kubectl auth can-i create clusterrolebindings --as=system:serviceaccount:default:dev-service-account"
+    pe "k auth can-i create clusterrolebindings --as=system:serviceaccount:default:dev-service-account"
     echo
     danger "Every check returns 'yes' - total cluster control!"
     echo
+    wait
     wait
 
     #############################################
@@ -79,29 +92,37 @@ demo_rbac() {
 
     pe "cat demo-pod.yaml"
     echo
-    pe "kubectl apply -f demo-pod.yaml"
-    pe "kubectl wait --for=condition=ready pod/demo-pod --timeout=60s"
+    k apply -f demo-pod.yaml
+    k wait --for=condition=ready pod/demo-pod --timeout=60s
     echo
     wait
 
+    clear
     info "Now the attacker is inside the pod with cluster-admin privileges..."
     echo
-    pe "kubectl exec demo-pod -- kubectl auth whoami"
+    pe "k exec demo-pod -- kubectl auth whoami"
     echo
     wait
+    wait
 
+    clear
     danger "They can steal all secrets from all namespaces..."
     echo
-    pe "kubectl exec demo-pod -- kubectl get secrets -n kube-system"
+    pe "k exec demo-pod -- kubectl get secrets -n kube-system"
     echo
+    wait
+    wait
 
+    clear
     danger "They can even create new admin accounts for persistence..."
     echo
-    pe "kubectl exec demo-pod -- kubectl auth can-i create clusterrolebindings"
-    pe "kubectl exec demo-pod -- kubectl auth can-i create serviceaccounts --all-namespaces"
+    pe "k exec demo-pod -- kubectl auth can-i create clusterrolebindings"
+    echo
+    pe "k exec demo-pod -- kubectl auth can-i create serviceaccounts --all-namespaces"
     echo
     danger "🚨 COMPLETE CLUSTER COMPROMISE 🚨"
     echo
+    wait
     wait
 
     #############################################
@@ -115,14 +136,16 @@ demo_rbac() {
     echo
 
     info "Step 1: Remove the dangerous ClusterRoleBinding"
-    pe "kubectl delete clusterrolebinding dev-cluster-admin-binding"
+    pe "k delete clusterrolebinding dev-cluster-admin-binding"
     echo
+    wait
     wait
 
     info "Step 2: Create a scoped Role with ONLY necessary permissions"
     echo
     pe "cat scoped-role.yaml"
     echo
+    wait
     wait
 
     info "Notice: This Role only grants access to pods, services, and configmaps"
@@ -131,10 +154,12 @@ demo_rbac() {
     info "         - Limited to 'default' namespace only"
     echo
     wait
+    wait
 
-    pe "kubectl apply -f scoped-role.yaml"
-    pe "kubectl apply -f scoped-rolebinding.yaml"
+    k apply -f scoped-role.yaml
+    k apply -f scoped-rolebinding.yaml
     echo
+    wait
     wait
 
     #############################################
@@ -147,34 +172,42 @@ demo_rbac() {
     info "Restarting the pod to pick up the new permissions..."
     echo
 
-    pe "kubectl delete pod demo-pod --force --grace-period=0"
-    pe "kubectl apply -f demo-pod.yaml"
-    pe "kubectl wait --for=condition=ready pod/demo-pod --timeout=60s"
+    pe "k delete pod demo-pod --force --grace-period=0"
+    pe "k apply -f demo-pod.yaml"
+    pe "k wait --for=condition=ready pod/demo-pod --timeout=60s"
     echo
     wait
+    wait
 
+    clear
     success "Now let's test the attacker's capabilities with scoped permissions..."
     echo
 
     info "Can they list pods? (Yes - this is needed for the application)"
-    pe "kubectl exec demo-pod -- kubectl auth can-i list pods"
+    pe "k exec demo-pod -- kubectl auth can-i list pods"
     echo
+    wait
+    wait
 
     info "Can they get configmaps? (Yes - this is needed for the application)"
-    pe "kubectl exec demo-pod -- kubectl auth can-i get configmaps"
+    pe "k exec demo-pod -- kubectl auth can-i get configmaps"
     echo
     wait
 
+    clear
     success "But now the dangerous permissions are blocked..."
     echo
 
     info "Can they access kube-system namespace? (No - scoped to default only!)"
-    pe "kubectl exec demo-pod -- kubectl auth can-i list secrets -n kube-system"
+    pe "k exec demo-pod -- kubectl auth can-i list secrets -n kube-system"
     echo
+    wait
+    wait
 
     info "Can they create new admin bindings? (No - privilege escalation blocked!)"
-    pe "kubectl exec demo-pod -- kubectl auth can-i create clusterrolebindings"
+    pe "k exec demo-pod -- kubectl auth can-i create clusterrolebindings"
     echo
+    wait
     wait
 
     clear
@@ -197,10 +230,10 @@ demo_rbac() {
     #############################################
 
 #    info "Cleaning up RBAC demo resources..."
-    kubectl delete -f demo-pod.yaml --force --grace-period=0 --ignore-not-found=true &>/dev/null
-    kubectl delete -f scoped-rolebinding.yaml --ignore-not-found=true &>/dev/null
-    kubectl delete -f scoped-role.yaml --ignore-not-found=true &>/dev/null
-    kubectl delete -f vulnerable-clusteradmin.yaml --ignore-not-found=true &>/dev/null
+    k delete -f demo-pod.yaml --force --grace-period=0 --ignore-not-found=true &>/dev/null
+    k delete -f scoped-rolebinding.yaml --ignore-not-found=true &>/dev/null
+    k delete -f scoped-role.yaml --ignore-not-found=true &>/dev/null
+    k delete -f vulnerable-clusteradmin.yaml --ignore-not-found=true &>/dev/null
 #    success "Done"
     echo
 

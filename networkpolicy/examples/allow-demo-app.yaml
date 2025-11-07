@@ -1,0 +1,46 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-demo-app
+  namespace: demo-app
+spec:
+  podSelector:
+    matchLabels:
+      app: client
+  policyTypes:
+  - Ingress
+  - Egress
+  egress:
+  # Allow egress to server-pod in same namespace
+  - to:
+    - podSelector:
+        matchLabels:
+          app: server
+    ports:
+    - protocol: TCP
+      port: 80
+  # Allow egress to cluster internal IPs only (blocks external internet)
+  - to:
+    - ipBlock:
+        cidr: 10.0.0.0/8
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-server-ingress
+  namespace: demo-app
+spec:
+  podSelector:
+    matchLabels:
+      app: server
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow ingress from client-pod only
+  - from:
+    - podSelector:
+        matchLabels:
+          app: client
+    ports:
+    - protocol: TCP
+      port: 80

@@ -189,13 +189,13 @@ kubectl cluster-info --context "kind-${CLUSTER_NAME}"
 echo
 success "Cluster is healthy!"
 
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+
 ###########################
 #### Setup Network Policy Demo Resources
 ###########################
 
 section "Setting up Network Policy Demo Resources"
-
-REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 
 info "Deploying demo pods for network policy demo..."
 kubectl apply -f "${REPO_ROOT}/networkpolicy/examples/demo-pods.yaml"
@@ -208,6 +208,44 @@ kubectl wait --for=condition=ready pod/sensitive-pod -n demo-sensitive --timeout
 echo
 
 success "Network policy demo pods ready"
+echo
+
+##########################
+### Setup Pod Security Standards Demo
+##########################
+
+section "Setting up Pod Security Standards Demo Resources"
+
+info "Creating production namespace (without PSS enforcement)..."
+kubectl apply -f "${REPO_ROOT}/podsecuritystandard/examples/setup/prod-namespace.yaml"
+echo
+
+info "Deploying privileged-app pod in production..."
+kubectl apply -f "${REPO_ROOT}/podsecuritystandard/examples/setup/privileged-app.yaml"
+echo
+
+info "Waiting for privileged-app to be ready..."
+kubectl wait --for=condition=ready pod/privileged-app -n prod --timeout=60s
+echo
+
+success "Pod Security Standards demo resources ready"
+echo
+
+##########################
+### Setup Image Vulnerability Demo
+##########################
+
+section "Setting up Image Vulnerability Demo Resources"
+
+info "Deploying pod with vulnerable image (node:10)..."
+kubectl apply -f "${REPO_ROOT}/imagevulnerability/examples/vulnerableimagepod.yaml"
+echo
+
+info "Waiting for vulnerable-node-demo to be ready..."
+kubectl wait --for=condition=ready pod/vulnerable-node-demo --timeout=60s
+echo
+
+success "Image Vulnerability demo resources ready"
 echo
 
 ##########################
@@ -294,6 +332,8 @@ echo
 
 success "✅ Vault and CSI driver are fully configured and ready for demo!"
 
+
+
 #########################
 ## Create Second Cluster (No Encryption)
 #########################
@@ -323,19 +363,16 @@ success "Both clusters are ready!"
 section "Setup Complete!"
 
 echo
-success "Both Kind clusters are ready for the demo!"
+success "Kind cluster is ready for the demo!"
 echo
 info "Configuration summary:"
 echo
-echo "Cluster 1: ${CLUSTER_NAME}"
-echo "  • Purpose: Show encrypted secrets (the solution)"
+echo "Cluster: ${CLUSTER_NAME}"
 echo "  • Encryption: aescbc enabled"
 echo "  • Context: kind-${CLUSTER_NAME}"
-echo
-echo "Cluster 2: ${CLUSTER_NAME}-noenc"
-echo "  • Purpose: Show plain-text secrets (the problem)"
-echo "  • Encryption: None (default Kubernetes)"
-echo "  • Context: kind-${CLUSTER_NAME}-noenc"
+echo "  • Demo Resources:"
+echo "    - Pod Security Standards: prod namespace with privileged-app"
+echo "    - Image Vulnerability: vulnerable-node-demo pod with node:10"
 echo
 info "Next steps:"
 echo "  1. Run the demo: ./demo.sh"

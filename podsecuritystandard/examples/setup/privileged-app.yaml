@@ -1,0 +1,38 @@
+## Developer-deployed application with excessive privileges ##
+## Deployed to production without proper security review ##
+apiVersion: v1
+kind: Pod
+metadata:
+  name: privileged-app
+  namespace: prod
+  labels:
+    app: payment-service
+spec:
+  hostPID: true        # Can see all host processes
+  hostNetwork: true    # Uses host network namespace
+  hostIPC: true        # Shares host IPC namespace
+  containers:
+  - name: app-container
+    image: ubuntu:22.04
+    command: ["/bin/bash", "-c", "sleep 3600"]
+    securityContext:
+      privileged: true              # Full access to host
+      runAsUser: 0                  # Running as root
+      allowPrivilegeEscalation: true
+      capabilities:
+        add: ["SYS_ADMIN", "NET_ADMIN"]  # Dangerous capabilities
+    volumeMounts:
+    - name: host-root
+      mountPath: /host              # Host filesystem access
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "200m"
+        memory: "256Mi"
+  volumes:
+  - name: host-root
+    hostPath:
+      path: /                       # Mounting host root!
+      type: Directory
