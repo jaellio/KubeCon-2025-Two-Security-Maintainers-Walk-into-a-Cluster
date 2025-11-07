@@ -2,8 +2,11 @@
 
 ########################
 # Pod Security Standards Demo Module
-# Demonstrates the danger of not enforcing Pod Security Standards
+# Demonstrates a production incident: developer mistake + security fix
 ########################
+
+shopt -s expand_aliases
+alias k='kubecolor'
 
 demo_podsecuritystandard() {
     local MODULE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -11,245 +14,227 @@ demo_podsecuritystandard() {
     local EXAMPLES_DIR="${REPO_ROOT}/podsecuritystandard/examples"
 
     #############################################
-    # SCENE 1: The Mistake (Broken)
+    # SCENE 1: The Discovery (Production Incident)
     #############################################
 
     clear
-    section_header "Pod Security Standards: The Mistake 💥" "${RED}"
+    section_header "Pod Security Standards: Production Incident 🚨" "${RED}"
     echo
-    info "Teams often create namespaces without Pod Security Standards..."
-    info "Kubernetes allows ANY pod configuration by default"
-    info "Developers can deploy highly privileged, dangerous pods"
-    echo
-
-    # Change to examples directory
-    cd "${EXAMPLES_DIR}/vulnerable"
-    echo
-
-    info "Let's create a namespace without any Pod Security Standards..."
-    echo
-    pe "cat namespace-no-pss.yaml"
+    info "Security team discovered a privileged pod running in production..."
+    info "A developer deployed a new payment service without proper security review"
+    info "They needed some privileges but weren't sure which ones - so they added ALL of them"
     echo
     wait
-    kubectl apply -f namespace-no-pss.yaml
+
+    info "Let's check the production namespace configuration..."
     echo
+    pe "k get namespace prod --show-labels"
+    echo
+    danger "⚠️  No Pod Security Standards configured!"
+    danger "Any pod configuration is allowed in this namespace"
+    echo
+    wait
     wait
 
     clear
-    info "Now let's deploy a HIGHLY PRIVILEGED pod with dangerous settings..."
+    info "Let's examine the pod that's currently running in production..."
     echo
-    pe "cat privileged-pod.yaml"
-    echo
-    wait
-
-    clear
-    info "Deploying the privileged pod..."
-    kubectl apply -f privileged-pod.yaml
-    kubectl wait --for=condition=ready pod/privileged-pod -n demo-pss --timeout=60s
-    echo
-    success "Pod deployed successfully..."
-    echo
-    danger "But this pod has FULL access to the host system!"
-    danger "  • hostPID: true (can see all host processes)"
-    danger "  • hostNetwork: true (uses host networking)"
-    danger "  • privileged: true (no security restrictions)"
-    danger "  • runAsUser: 0 (running as root)"
-    danger "  • Mounted host root filesystem at /host"
+    cd "${EXAMPLES_DIR}/setup"
+    pe "cat privileged-app.yaml"
     echo
     wait
-    sleep 1
+    wait
 
     #############################################
-    # SCENE 2: The Impact (What This Means)
+    # SCENE 2: Understanding the Risk
     #############################################
 
     clear
-    section_header "Pod Security Standards: Understanding the Impact 🔍" "${YELLOW}"
+    section_header "Pod Security Standards: Understanding the Risk 🔍" "${YELLOW}"
     echo
-    info "Let's see what this privileged pod can access..."
+    info "Let's verify what this pod can actually access..."
     echo
     wait
 
     info "Check 1: What user is the container running as?"
     echo
-    pe "kubectl exec -n demo-pss privileged-pod -- whoami"
+    pe "k exec -n prod privileged-app -- whoami"
     echo
-    danger "Running as ROOT!"
+    danger "⚠️  Running as ROOT!"
     echo
+    wait
     wait
 
     clear
     info "Check 2: Can we see host processes? (hostPID: true)"
     echo
-    pe "kubectl exec -n demo-pss privileged-pod -- ps aux | head -15"
+    pe "k exec -n prod privileged-app -- ps aux | head -15"
     echo
-    danger "YES - We can see ALL host processes!"
+    danger "⚠️  We can see ALL host processes!"
     danger "This is NOT normal container isolation!"
     echo
+    wait
     wait
 
     clear
     info "Check 3: Can we access the host filesystem? (hostPath volume)"
     echo
-    pe "kubectl exec -n demo-pss privileged-pod -- ls -la /host/etc | head -10"
+    pe "k exec -n prod privileged-app -- ls -la /host/etc | head -10"
     echo
-    danger "YES - Full access to host's /etc directory!"
+    danger "⚠️  Full access to host's /etc directory!"
     echo
+    wait
     wait
 
     clear
     info "Check 4: Can we read sensitive host files?"
     echo
-    pe "kubectl exec -n demo-pss privileged-pod -- cat /host/etc/passwd | head -5"
+    pe "k exec -n prod privileged-app -- cat /host/etc/passwd | head -5"
     echo
-    danger "YES - Can read /etc/passwd and other sensitive files!"
+    danger "⚠️  Can read /etc/passwd and other sensitive files!"
     danger "This privileged pod has COMPLETE host access!"
     echo
     wait
-    sleep 1
+    wait
 
     #############################################
-    # SCENE 3: The Attack (Simulated)
-    #############################################
-
-    clear
-    section_header "Pod Security Standards: The Attack Scenario 🎭" "${RED}"
-    echo
-    danger "An attacker compromises this privileged pod..."
-    danger "They now have a path to escape the container!"
-    echo
-    wait
-
-    danger "Attack 1: Access Host Processes"
-    echo
-    info "  • With hostPID, attacker can see all processes"
-    info "  • Can identify and target other workloads"
-    info "  • Can inject into host processes"
-    echo
-    wait
-
-    danger "Attack 2: Host Filesystem Access"
-    echo
-    info "  • Mounted host root at /host"
-    info "  • Can read SSH keys: /host/root/.ssh/"
-    info "  • Can read kubeconfig: /host/etc/kubernetes/"
-    info "  • Can modify system files"
-    echo
-    wait
-
-    danger "Attack 3: Network Hijacking"
-    echo
-    info "  • hostNetwork gives access to host network"
-    info "  • Can sniff all node traffic"
-    info "  • Can bind to privileged ports"
-    info "  • Man-in-the-middle attacks"
-    echo
-    wait
-
-    danger "Attack 4: Complete Node Takeover"
-    echo
-    info "  • Privileged container = root on host"
-    info "  • Can load kernel modules"
-    info "  • Can escape to host completely"
-    info "  • Compromise all pods on the node"
-    echo
-    danger "🚨 ONE PRIVILEGED POD = ENTIRE NODE COMPROMISED 🚨"
-    echo
-    wait
-    sleep 1
-
-    #############################################
-    # SCENE 4: The Fix (Pod Security Standards)
+    # SCENE 3: Applying the Fix (Enable PSS)
     #############################################
 
     clear
-    section_header "Pod Security Standards: The Fix ✅" "${GREEN}"
+    section_header "Pod Security Standards: Applying the Fix 🔧" "${GREEN}"
     echo
-    success "Solution: Enforce Pod Security Standards (PSS) on namespaces"
+    success "Solution: Enable Pod Security Standards on the production namespace"
     echo
-    info "Kubernetes offers 3 PSS levels:"
-    echo "  • Privileged: Unrestricted (no enforcement)"
-    echo "  • Baseline: Minimally restrictive (prevents known privilege escalations)"
-    echo "  • Restricted: Heavily restricted (follows pod hardening best practices)"
+    info "We'll update the namespace to enforce the Restricted standard..."
     echo
     wait
+    wait
 
-    clear
-    info "Let's create a namespace with RESTRICTED Pod Security Standard..."
-    echo
     cd "${EXAMPLES_DIR}/restricted"
-    pe "cat namespace-restricted.yaml"
+    info "Here's the updated namespace configuration:"
+    echo
+    pe "cat prod-namespace-restricted.yaml"
     echo
     wait
-    kubectl apply -f namespace-restricted.yaml
-    echo
-    success "Namespace created with Restricted PSS enforcement!"
-    echo
     wait
 
     clear
-    info "Now let's try to deploy the same privileged pod..."
+    info "Applying the updated namespace configuration..."
     echo
-    pe "kubectl apply -f ../vulnerable/privileged-pod.yaml -n demo-pss-restricted || echo ''"
+    k apply -f prod-namespace-restricted.yaml
     echo
-    success "✅ BLOCKED! Privileged pod violates Restricted PSS"
+    success "✅ Restricted PSS now enforced on production namespace!"
     echo
+    wait
     wait
 
     clear
-    info "Let's deploy a SECURE pod that complies with Restricted PSS..."
+    info "Let's verify the namespace now has PSS labels..."
     echo
-    pe "cat secure-pod.yaml"
+    pe "k get namespace prod --show-labels"
+    echo
+    success "✅ Pod Security Standards are now enforced!"
     echo
     wait
-    kubectl apply -f secure-pod.yaml
-    kubectl wait --for=condition=ready pod/secure-pod -n demo-pss-restricted --timeout=60s
+    wait
+
+    #############################################
+    # SCENE 4: Testing Enforcement
+    #############################################
+
+    clear
+    section_header "Pod Security Standards: Testing Enforcement 🧪" "${CYAN}"
+    echo
+    info "Now that PSS is enforced, let's verify privileged pods are blocked..."
+    echo
+    wait
+    wait
+
+    info "Attempting to deploy a privileged pod..."
+    echo
+    pe "k apply -f privileged-pod-test.yaml || echo ''"
+    echo
+    success "✅ BLOCKED! Privileged pods can no longer be deployed"
+    echo
+    wait
+    wait
+
+    #############################################
+    # SCENE 5: Fixing the Application
+    #############################################
+
+    clear
+    section_header "Pod Security Standards: Fixing the Application 🔒" "${GREEN}"
+    echo
+    info "Now we need to update the privileged-app to comply with security standards..."
+    echo
+    wait
+    wait
+
+    info "Here's the updated pod configuration that complies with Restricted PSS:"
+    echo
+    pe "cat privileged-app-fixed.yaml"
+    echo
+    wait
+    wait
+
+    clear
+    info "Let's delete the old privileged pod and deploy the secure version..."
+    echo
+    k delete pod privileged-app -n prod --grace-period=0 --force &>/dev/null
+    echo "Deploying secure version..."
+    k apply -f privileged-app-fixed.yaml
+    k wait --for=condition=ready pod/privileged-app -n prod --timeout=60s
     echo
     success "✅ Secure pod deployed successfully!"
     echo
     wait
-    sleep 1
+    wait
 
     #############################################
-    # SCENE 5: The Result (Verification)
+    # SCENE 6: Verification
     #############################################
 
     clear
-    section_header "Pod Security Standards: Verifying the Fix 🔒" "${GREEN}"
+    section_header "Pod Security Standards: Verifying the Fix ✅" "${GREEN}"
     echo
     success "Let's verify the security improvements..."
     echo
 
     info "Check 1: What user is the secure pod running as?"
     echo
-    pe "kubectl exec -n demo-pss-restricted secure-pod -- whoami"
+    pe "k exec -n prod privileged-app -- whoami"
     echo
     success "✅ Running as non-root user (UID 1000)!"
     echo
+    wait
     wait
 
     clear
     info "Check 2: Can it see host processes?"
     echo
-    pe "kubectl exec -n demo-pss-restricted secure-pod -- ps aux | head -10"
+    pe "k exec -n prod privileged-app -- ps aux | head -10"
     echo
     success "✅ Only sees container processes - proper isolation!"
     echo
+    wait
     wait
 
     clear
     info "Check 3: Can it access host filesystem?"
     echo
-    pe "kubectl exec -n demo-pss-restricted secure-pod -- ls -la /host 2>&1 || echo 'No /host mount'"
+    pe "k exec -n prod privileged-app -- ls -la /host 2>&1 || echo 'No /host mount'"
     echo
     success "✅ No host filesystem access!"
     echo
     wait
+    wait
 
     clear
-    info "Let's compare the security contexts..."
+    info "Let's compare the before and after configurations..."
     echo
-    echo "Privileged Pod (DANGEROUS):"
+    echo "${RED}Before (DANGEROUS):${NC}"
     echo "  • hostPID: true"
     echo "  • hostNetwork: true"
     echo "  • privileged: true"
@@ -257,7 +242,7 @@ demo_podsecuritystandard() {
     echo "  • All capabilities"
     echo "  • Host filesystem mounted"
     echo
-    echo "Secure Pod (PROTECTED):"
+    echo "${GREEN}After (SECURE):${NC}"
     echo "  • No host namespace sharing"
     echo "  • privileged: false"
     echo "  • runAsNonRoot: true"
@@ -271,27 +256,22 @@ demo_podsecuritystandard() {
     clear
     section_header "Pod Security Standards: Summary 📋" "${CYAN}"
     echo
-    success "✅ Demonstrated privileged pod with dangerous host access"
-    success "✅ Showed container escape possibilities"
-    success "✅ Applied Restricted Pod Security Standard"
-    success "✅ Blocked privileged pod deployment"
-    success "✅ Deployed compliant secure pod"
-    success "✅ Verified proper isolation"
+    success "✅ Discovered privileged pod in production"
+    success "✅ Identified security risks and excessive privileges"
+    success "✅ Applied Restricted Pod Security Standard to namespace"
+    success "✅ Verified enforcement blocks new privileged pods"
+    success "✅ Updated application to comply with security standards"
+    success "✅ Confirmed proper isolation and security"
     echo
-    success "🎯 Pod Security Standards enforce secure pod configurations!"
-    success "   Privileged pods are now blocked at admission time"
+    success "🎯 Pod Security Standards prevent privilege escalation!"
+    success "   Production is now protected from misconfigured pods"
 
     #############################################
     # Cleanup
     #############################################
 
 #    info "Cleaning up Pod Security Standards demo resources..."
-    kubectl delete namespace demo-pss --ignore-not-found=true &>/dev/null
-    kubectl delete namespace demo-pss-restricted --ignore-not-found=true &>/dev/null
-
-    # Wait for namespace deletion
-    kubectl wait --for=delete namespace/demo-pss --timeout=30s &>/dev/null || true
-    kubectl wait --for=delete namespace/demo-pss-restricted --timeout=30s &>/dev/null || true
+#    k delete namespace prod --ignore-not-found=true &>/dev/null
 
 #    success "Done"
     echo

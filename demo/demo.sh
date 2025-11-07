@@ -17,9 +17,15 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 . "${SCRIPT_DIR}/demo-magic.sh"
 
 ########################
+# Enable kubectl alias for colored output
+########################
+shopt -s expand_aliases
+alias k='kubecolor'
+
+########################
 # Configuration
 ########################
-TYPE_SPEED=30
+TYPE_SPEED=40
 PROMPT_TIMEOUT=1
 DEMO_PROMPT="${GREEN}➜ ${CYAN}\W ${COLOR_RESET}"
 
@@ -94,9 +100,6 @@ source "${SCRIPT_DIR}/modules/imagevulnerability.sh"
 # Source Pod Security Standards module
 source "${SCRIPT_DIR}/modules/podsecuritystandard.sh"
 
-# Add more modules here as you expand
-# source "${SCRIPT_DIR}/modules/podsecurity.sh"
-
 ########################
 # Main Demo Flow
 ########################
@@ -116,17 +119,17 @@ echo "  • Secret Management: Secure external secret storage"
 echo
 wait
 
-sleep 3
+sleep 2
 
 #############################################
 # Run Security Demos
 #############################################
 
-# Run RBAC demo
-demo_rbac
+## Run RBAC demo
+#demo_rbac
 
-# Run KMS demo
-demo_kms
+## Run KMS demo
+#demo_kms
 
 # Run Secret Management demo
 demo_secretmanagement

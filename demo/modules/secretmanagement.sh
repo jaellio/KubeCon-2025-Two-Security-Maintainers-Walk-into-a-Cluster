@@ -5,19 +5,22 @@
 # Demonstrates why native K8s Secrets are risky and how CSI driver provides better security
 ########################
 
+shopt -s expand_aliases
+alias k='kubecolor'
+
 demo_secretmanagement() {
     local MODULE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
     local REPO_ROOT="$(dirname "$(dirname "$MODULE_DIR")")"
     local EXAMPLES_DIR="${REPO_ROOT}/secretmanagement/examples"
 
-    # Helper function to execute etcdctl commands via kubectl exec to the etcd pod
+    # Helper function to execute etcdctl commands via k exec to the etcd pod
     etcdctl_exec() {
-        local etcd_pod=$(kubectl get pods -n kube-system -l component=etcd -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+        local etcd_pod=$(k get pods -n kube-system -l component=etcd -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
         if [ -z "$etcd_pod" ]; then
             echo "Error: Could not find etcd pod in kube-system namespace" >&2
             return 1
         fi
-        kubectl exec -n kube-system "$etcd_pod" -- sh -c "$1"
+        k exec -n kube-system "$etcd_pod" -- sh -c "$1"
     }
 
     #############################################
@@ -39,16 +42,16 @@ demo_secretmanagement() {
     info "Let's create a native Kubernetes Secret with database credentials..."
     pe "cat db-secret.yaml"
     echo
-    pe "kubectl apply -f db-secret.yaml"
+    pe "k apply -f db-secret.yaml"
     echo
 
     info "Now deploy an app that uses this secret..."
     pe "cat app-with-secret.yaml"
     echo
-    pe "kubectl apply -f app-with-secret.yaml"
+    pe "k apply -f app-with-secret.yaml"
     echo
 
-    pe "kubectl wait --for=condition=ready pod/app-with-secret --timeout=60s"
+    k wait --for=condition=ready pod/app-with-secret --timeout=60s
     echo
 
     success "App is running with the secret..."
@@ -71,16 +74,12 @@ demo_secretmanagement() {
 
     info "First, let's decode what's in the secret..."
     echo
-    pe "kubectl get secret db-secret -o jsonpath='{.data.password}'"
-    echo
-    echo
-    info "That's base64 encoded. Let's decode it:"
-    echo
-    pe "kubectl get secret db-secret -o jsonpath='{.data.password}' | base64 -d"
+    pe "k get secret db-secret -o jsonpath='{.data.password}' | base64 -d"
     echo
     echo
     danger "😱 The password is accessible through the API!"
     echo
+    wait
     wait
 
     info "Now let's check etcd..."
@@ -92,7 +91,7 @@ demo_secretmanagement() {
     danger "Anyone with etcd access can decrypt them through the API"
     echo
     wait
-    sleep 1
+    wait
 
     #############################################
     # SCENE 3: The Attack (Simulated)
@@ -109,9 +108,9 @@ demo_secretmanagement() {
     echo
     info "Attacker steals a service account token with secret read access..."
     echo
-    pe "kubectl get secrets --all-namespaces"
+    pe "k get secrets --all-namespaces"
     echo
-    pe "kubectl get secret db-secret -o yaml"
+    pe "k get secret db-secret -o yaml"
     echo
     danger "Attacker can read ALL secrets in allowed namespaces!"
     echo
@@ -141,12 +140,12 @@ demo_secretmanagement() {
     info "  • Crash dumps"
     info "  • Log files"
     echo
-    pe "kubectl exec app-with-secret -- env | grep DB_"
+    pe "k exec app-with-secret -- env | grep DB_"
     echo
     danger "Environment variables are easily leaked!"
     echo
     wait
-    sleep 1
+    wait
 
     #############################################
     # SCENE 4: The Fix (CSI Driver + Vault)
@@ -174,15 +173,18 @@ demo_secretmanagement() {
     echo
     wait
 
+    clear
     info "Let's verify Vault is running with our secrets:"
     echo
     cd "${EXAMPLES_DIR}/vault-setup"
-    pe "kubectl exec vault-0 -- env VAULT_TOKEN=root vault kv get secret/db-creds"
+    pe "k exec vault-0 -- env VAULT_TOKEN=root vault kv get secret/db-creds"
     echo
     success "✅ Secret stored in Vault, not etcd!"
     echo
     wait
+    wait
 
+    clear
     info "Now let's look at the SecretProviderClass configuration..."
     echo
     info "This tells the CSI driver how to map Vault secrets to filesystem paths"
@@ -191,23 +193,27 @@ demo_secretmanagement() {
     pe "cat secretproviderclass.yaml"
     echo
     wait
+    wait
 
+    clear
     info "Let's look at the app configuration that uses CSI driver to mount secrets from Vault..."
     echo
     pe "cat app-with-csi.yaml"
     echo
     wait
+    wait
 
+    clear
     info "The app-with-csi pod was deployed during cluster setup..."
     echo
     info "Let's verify it's running with CSI-mounted secrets..."
     echo
-    pe "kubectl get pod app-with-csi"
+    pe "k get pod app-with-csi"
     echo
     success "✅ App is running with CSI-mounted secrets!"
     echo
     wait
-    sleep 1
+    wait
 
     #############################################
     # SCENE 5: The Result (Verification)
@@ -226,23 +232,28 @@ demo_secretmanagement() {
     success "✅ No secrets stored in etcd!"
     echo
     wait
+    wait
 
+    clear
     info "Verify secrets are accessible to the pod from Vault..."
     echo
-    pe "kubectl exec app-with-csi -- ls -la /mnt/secrets-store"
+    pe "k exec app-with-csi -- ls -la /mnt/secrets-store"
     echo
-    pe "kubectl exec app-with-csi -- cat /mnt/secrets-store/password"
+    pe "k exec app-with-csi -- cat /mnt/secrets-store/password"
     echo
     success "✅ App can access secrets from Vault!"
     echo
     wait
+    wait
 
+    clear
     info "Check that secrets are NOT in Kubernetes Secrets..."
     echo
-    pe "kubectl get secrets | grep -i vault || echo 'No vault secrets in Kubernetes'"
+    pe "k get secrets | grep -i vault || echo 'No vault secrets in Kubernetes'"
     echo
     success "✅ Secrets managed externally, not in Kubernetes!"
     echo
+    wait
     wait
 
     clear
@@ -271,8 +282,8 @@ demo_secretmanagement() {
 
 #    info "Cleaning up Secret Management demo resources..."
     # Only cleanup the vulnerable example resources created during the demo
-    kubectl delete pod app-with-secret --force --grace-period=0 --ignore-not-found=true &>/dev/null
-    kubectl delete secret db-secret --ignore-not-found=true &>/dev/null
+    k delete pod app-with-secret --force --grace-period=0 --ignore-not-found=true &>/dev/null
+    k delete secret db-secret --ignore-not-found=true &>/dev/null
 
     # Note: app-with-csi, Vault, SecretProviderClass, and ServiceAccounts are NOT deleted
     # as they were created during cluster setup and should persist

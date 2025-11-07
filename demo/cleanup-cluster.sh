@@ -59,6 +59,15 @@ else
     warning "Cluster '${CLUSTER_NAME}' not found (already deleted?)"
 fi
 
+# Check if second cluster exists
+if kind get clusters 2>/dev/null | grep -q "^${CLUSTER_NAME}-noenc$"; then
+    info "Deleting kind cluster '${CLUSTER_NAME}-noenc'..."
+    kind delete cluster --name "${CLUSTER_NAME}-noenc"
+    success "Second cluster deleted"
+else
+    warning "Cluster '${CLUSTER_NAME}-noenc' not found (already deleted?)"
+fi
+
 # Clean up temporary files
 if [ -d "${TEMP_DIR}" ]; then
     info "Removing temporary configuration files..."

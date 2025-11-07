@@ -5,6 +5,9 @@
 # Demonstrates the danger of plain text secret storage in etcd
 ########################
 
+shopt -s expand_aliases
+alias k='kubecolor'
+
 demo_kms() {
     local MODULE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
     local REPO_ROOT="$(dirname "$(dirname "$MODULE_DIR")")"
@@ -14,14 +17,14 @@ demo_kms() {
     local CLUSTER_NOENC="kubecon-security-demo-noenc"
     local CLUSTER_ENC="kubecon-security-demo"
 
-    # Helper function to execute etcdctl commands via kubectl exec to the etcd pod
+    # Helper function to execute etcdctl commands via k exec to the etcd pod
     etcdctl_exec() {
-        local etcd_pod=$(kubectl get pods -n kube-system -l component=etcd -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+        local etcd_pod=$(k get pods -n kube-system -l component=etcd -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
         if [ -z "$etcd_pod" ]; then
             echo "Error: Could not find etcd pod in kube-system namespace" >&2
             return 1
         fi
-        kubectl exec -n kube-system "$etcd_pod" -- sh -c "$1"
+        k exec -n kube-system "$etcd_pod" -- sh -c "$1"
     }
 
     #############################################
@@ -29,7 +32,7 @@ demo_kms() {
     #############################################
 
     # Switch to the no-encryption cluster
-    kubectl config use-context "kind-${CLUSTER_NOENC}" &>/dev/null
+    k config use-context "kind-${CLUSTER_NOENC}" &>/dev/null
 
     clear
     section_header "KMS: The Mistake 💥" "${RED}"
@@ -48,14 +51,14 @@ demo_kms() {
     info "Let's create a secret with database credentials..."
     pe "cat demo-secret.yaml"
     echo
-    pe "kubectl apply -f demo-secret.yaml"
+    pe "k apply -f demo-secret.yaml"
     echo
-    pe "kubectl get secret db-credentials"
+    pe "k get secret db-credentials"
     echo
     danger "Secret created, but is it really secure?"
     echo
     wait
-    sleep 1
+    wait
 
     #############################################
     # SCENE 2: The Impact (What This Means)
@@ -75,7 +78,7 @@ demo_kms() {
     danger "Anyone with etcd access can read ALL your secrets!"
     echo
     wait
-    sleep 1
+    wait
 
     #############################################
     # SCENE 3: The Attack (Simulated)
@@ -96,6 +99,7 @@ demo_kms() {
     danger "Attacker knows what secrets exist in the cluster"
     echo
     wait
+    wait
 
     #############################################
     # SCENE 4: The Fix (Implementing Encryption)
@@ -110,7 +114,7 @@ demo_kms() {
     info "Switching to a cluster with encryption ENABLED..."
     info "This cluster was created with aescbc encryption from the start"
     echo
-    kubectl config use-context kind-${CLUSTER_ENC}
+    k config use-context kind-${CLUSTER_ENC}
     echo
     success "Now using cluster: ${CLUSTER_ENC} (encryption enabled)"
     echo
@@ -121,7 +125,7 @@ demo_kms() {
     pe "cat encryption-config-aescbc.yaml"
     echo
     wait
-    sleep 1
+    wait
 
     #############################################
     # SCENE 5: The Result (Verification)
@@ -135,7 +139,7 @@ demo_kms() {
 
     info "First, let's create the same secret in the encrypted cluster..."
     echo
-    pe "kubectl apply -f demo-secret.yaml"
+    pe "k apply -f demo-secret.yaml"
     echo
     success "Secret created in the encrypted cluster"
     echo
@@ -150,7 +154,7 @@ demo_kms() {
     success "✅ Data starts with 'k8s:enc:aescbc:v1:key1:' (encryption marker)"
     echo
     wait
-    sleep 2
+    wait
 
     clear
     section_header "KMS: Summary 📋" "${CYAN}"
@@ -177,12 +181,12 @@ demo_kms() {
     #############################################
 
     # Cleanup from both clusters
-    kubectl config use-context "kind-${CLUSTER_NOENC}" &>/dev/null
-    kubectl delete secret db-credentials --ignore-not-found=true &>/dev/null
+    k config use-context "kind-${CLUSTER_NOENC}" &>/dev/null
+    k delete secret db-credentials --ignore-not-found=true &>/dev/null
 
-    kubectl config use-context "kind-${CLUSTER_ENC}" &>/dev/null
-    kubectl delete secret db-credentials --ignore-not-found=true &>/dev/null
-    kubectl delete secret test-secret --ignore-not-found=true &>/dev/null
+    k config use-context "kind-${CLUSTER_ENC}" &>/dev/null
+    k delete secret db-credentials --ignore-not-found=true &>/dev/null
+    k delete secret test-secret --ignore-not-found=true &>/dev/null
 
     echo
 

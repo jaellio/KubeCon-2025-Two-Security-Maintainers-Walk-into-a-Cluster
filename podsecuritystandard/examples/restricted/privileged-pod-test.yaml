@@ -1,0 +1,21 @@
+## Test Pod - Violates Restricted PSS (for testing enforcement) ##
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-privileged-pod
+  namespace: prod
+  labels:
+    app: test-app
+spec:
+  hostPID: true        # Violates Restricted PSS
+  containers:
+  - name: test-container
+    image: ubuntu:22.04
+    command: ["/bin/bash", "-c", "sleep 3600"]
+    securityContext:
+      privileged: true   # Violates Restricted PSS
+      runAsUser: 0       # Violates Restricted PSS
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
