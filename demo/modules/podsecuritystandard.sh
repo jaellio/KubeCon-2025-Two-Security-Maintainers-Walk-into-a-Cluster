@@ -14,7 +14,7 @@ demo_podsecuritystandard() {
     local EXAMPLES_DIR="${REPO_ROOT}/podsecuritystandard/examples"
 
     #############################################
-    # SCENE 1: The Discovery (Production Incident)
+    # SCENE 1: The Mistake
     #############################################
 
     clear
@@ -230,41 +230,6 @@ demo_podsecuritystandard() {
     echo
     wait
     wait
-
-    clear
-    info "Let's compare the before and after configurations..."
-    echo
-    echo "${RED}Before (DANGEROUS):${NC}"
-    echo "  • hostPID: true"
-    echo "  • hostNetwork: true"
-    echo "  • privileged: true"
-    echo "  • runAsUser: 0 (root)"
-    echo "  • All capabilities"
-    echo "  • Host filesystem mounted"
-    echo
-    echo "${GREEN}After (SECURE):${NC}"
-    echo "  • No host namespace sharing"
-    echo "  • privileged: false"
-    echo "  • runAsNonRoot: true"
-    echo "  • runAsUser: 1000"
-    echo "  • All capabilities dropped"
-    echo "  • Seccomp: RuntimeDefault"
-    echo "  • No host mounts"
-    echo
-    wait
-
-    clear
-    section_header "Pod Security Standards: Summary 📋" "${CYAN}"
-    echo
-    success "✅ Discovered privileged pod in production"
-    success "✅ Identified security risks and excessive privileges"
-    success "✅ Applied Restricted Pod Security Standard to namespace"
-    success "✅ Verified enforcement blocks new privileged pods"
-    success "✅ Updated application to comply with security standards"
-    success "✅ Confirmed proper isolation and security"
-    echo
-    success "🎯 Pod Security Standards prevent privilege escalation!"
-    success "   Production is now protected from misconfigured pods"
 
     #############################################
     # Cleanup
