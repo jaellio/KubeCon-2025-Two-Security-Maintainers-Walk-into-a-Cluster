@@ -31,7 +31,7 @@ demo_secretmanagement() {
     section_header "Secret Management: The Mistake 💥" "${RED}"
     echo
     info "Many teams use native Kubernetes Secrets thinking they're secure..."
-    info "Even with encryption at rest (KMS), secrets still pass through etcd"
+    info "Even with encryption at rest, secrets still pass through etcd"
     echo
 
     # Change to examples directory
@@ -84,7 +84,7 @@ demo_secretmanagement() {
 
     info "Now let's check etcd..."
     echo
-    pe "etcdctl_exec 'ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key get /registry/secrets/default/db-secret' | head -20"
+    pe "etcdctl_exec 'etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key get /registry/secrets/default/db-secret' | head -20"
     echo
 
     danger "Even with encryption, secrets exist in etcd!"
@@ -119,7 +119,6 @@ demo_secretmanagement() {
     danger "Attack 2: etcd backup theft"
     echo
     info "Even encrypted backups can be decrypted if the encryption key is obtained..."
-    info "Backups often stored in less secure locations (S3 buckets, shared storage)"
     echo
     danger "Attacker gets backup → Extracts secrets through API replay"
     echo
@@ -227,7 +226,7 @@ demo_secretmanagement() {
 
     info "Checking etcd for any vault-related secrets..."
     echo
-    pe "etcdctl_exec 'ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key get /registry/secrets/default/ --prefix --keys-only | grep vault || echo \"No vault secrets in etcd!\"'"
+    pe "etcdctl_exec 'etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key get /registry/secrets/default/ --prefix --keys-only' | grep vault || echo \"No vault secrets in etcd!\""
     echo
     success "✅ No secrets stored in etcd!"
     echo
@@ -280,15 +279,12 @@ demo_secretmanagement() {
     # Cleanup
     #############################################
 
-#    info "Cleaning up Secret Management demo resources..."
+    info "Cleaning up Secret Management demo resources..."
     # Only cleanup the vulnerable example resources created during the demo
     k delete pod app-with-secret --force --grace-period=0 --ignore-not-found=true &>/dev/null
     k delete secret db-secret --ignore-not-found=true &>/dev/null
 
-    # Note: app-with-csi, Vault, SecretProviderClass, and ServiceAccounts are NOT deleted
-    # as they were created during cluster setup and should persist
-
-#    success "Done"
+    success "Done"
     echo
 
     # Return to original directory

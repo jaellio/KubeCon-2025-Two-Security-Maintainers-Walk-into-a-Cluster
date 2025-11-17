@@ -241,8 +241,8 @@ info "Deploying pod with vulnerable image (node:10)..."
 kubectl apply -f "${REPO_ROOT}/imagevulnerability/examples/vulnerableimagepod.yaml"
 echo
 
-info "Waiting for vulnerable-node-demo to be ready..."
-kubectl wait --for=condition=ready pod/vulnerable-node-demo --timeout=60s
+info "Waiting for vulnerable-curl-demo to be ready..."
+kubectl wait --for=condition=ready pod/vulnerable-curl-demo --timeout=60s
 echo
 
 success "Image Vulnerability demo resources ready"

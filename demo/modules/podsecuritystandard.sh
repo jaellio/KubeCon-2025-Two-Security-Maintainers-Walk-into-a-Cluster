@@ -44,6 +44,8 @@ demo_podsecuritystandard() {
     echo
     wait
     wait
+    wait
+    wait
 
     #############################################
     # SCENE 2: Understanding the Risk
@@ -118,6 +120,8 @@ demo_podsecuritystandard() {
     echo
     wait
     wait
+    wait
+    wait
 
     clear
     info "Applying the updated namespace configuration..."
@@ -126,6 +130,8 @@ demo_podsecuritystandard() {
     echo
     success "✅ Restricted PSS now enforced on production namespace!"
     echo
+    wait
+    wait
     wait
     wait
 
@@ -176,6 +182,8 @@ demo_podsecuritystandard() {
     echo
     pe "cat privileged-app-fixed.yaml"
     echo
+    wait
+    wait
     wait
     wait
 
@@ -235,10 +243,10 @@ demo_podsecuritystandard() {
     # Cleanup
     #############################################
 
-#    info "Cleaning up Pod Security Standards demo resources..."
-#    k delete namespace prod --ignore-not-found=true &>/dev/null
+    info "Cleaning up Pod Security Standards demo resources..."
+    k delete namespace prod --ignore-not-found=true &>/dev/null
 
-#    success "Done"
+    success "Done"
     echo
 
     # Return to original directory

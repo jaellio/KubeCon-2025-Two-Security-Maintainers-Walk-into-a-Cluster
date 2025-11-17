@@ -35,7 +35,7 @@ demo_kms() {
     k config use-context "kind-${CLUSTER_NOENC}" &>/dev/null
 
     clear
-    section_header "KMS: The Mistake 💥" "${RED}"
+    section_header "Encryption at rest: The Mistake 💥" "${RED}"
     echo
     info "By default, Kubernetes stores Secrets in PLAIN TEXT in etcd..."
     info "Most teams don't realize this and assume 'Secrets' are encrypted"
@@ -65,14 +65,14 @@ demo_kms() {
     #############################################
 
     clear
-    section_header "KMS: Understanding the Impact 🔍" "${YELLOW}"
+    section_header "Encryption at rest: Understanding the Impact 🔍" "${YELLOW}"
     echo
     info "Let's check how secrets are actually stored in etcd..."
     echo
 
     info "Accessing etcd from the etcd pod in kube-system..."
     echo
-    pe "etcdctl_exec 'ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key get /registry/secrets/default/db-credentials'"
+    pe "etcdctl_exec 'etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key get /registry/secrets/default/db-credentials'"
     echo
     danger "😱 The password is visible in PLAIN TEXT!"
     danger "Anyone with etcd access can read ALL your secrets!"
@@ -85,7 +85,7 @@ demo_kms() {
     #############################################
 
     clear
-    section_header "KMS: The Attack Scenario 🎭" "${RED}"
+    section_header "Encryption at rest: The Attack Scenario 🎭" "${RED}"
     echo
     danger "An attacker gains access to the control plane node..."
     danger "They can now extract ALL secrets from the entire cluster!"
@@ -94,7 +94,7 @@ demo_kms() {
 
     danger "Attack 1: Extract all secret names"
     echo
-    pe "etcdctl_exec 'ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key get /registry/secrets --prefix --keys-only' | head -10"
+    pe "etcdctl_exec 'etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key get /registry/secrets --prefix --keys-only' | head -10"
     echo
     danger "Attacker knows what secrets exist in the cluster"
     echo
@@ -106,7 +106,7 @@ demo_kms() {
     #############################################
 
     clear
-    section_header "KMS: The Fix ✅" "${GREEN}"
+    section_header "Encryption at rest: The Fix ✅" "${GREEN}"
     echo
     success "Let's see how encryption at rest protects our secrets!"
     echo
@@ -132,7 +132,7 @@ demo_kms() {
     #############################################
 
     clear
-    section_header "KMS: Verifying the Fix 🔒" "${GREEN}"
+    section_header "Encryption at rest: Verifying the Fix 🔒" "${GREEN}"
     echo
     success "Let's verify that secrets are encrypted in this cluster..."
     echo
@@ -147,7 +147,7 @@ demo_kms() {
 
     info "Now let's check how it's stored in etcd..."
     echo
-    pe "etcdctl_exec 'ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key get /registry/secrets/default/db-credentials'"
+    pe "etcdctl_exec 'etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key get /registry/secrets/default/db-credentials'"
     echo
     success "✅ Secret is now an encrypted blob!"
     success "✅ Password is NOT readable in etcd!"
@@ -157,7 +157,7 @@ demo_kms() {
     wait
 
     clear
-    section_header "KMS: Summary 📋" "${CYAN}"
+    section_header "Encryption at rest: Summary 📋" "${CYAN}"
     echo
     success "✅ Demonstrated the problem: Secrets in plain text (no encryption)"
     success "✅ Demonstrated the solution: Secrets encrypted with aescbc"

@@ -125,17 +125,17 @@ sleep 2
 # Run Security Demos
 #############################################
 
-## Run RBAC demo
-#demo_rbac
+# Run RBAC demo
+demo_rbac
 
-## Run KMS demo
-#demo_kms
+# Run KMS demo
+demo_kms
 
 # Run Secret Management demo
 demo_secretmanagement
 
 # Run Network Policy demo
- demo_networkpolicy
+demo_networkpolicy
 
 # Run Image Vulnerability demo
 demo_imagevulnerability
